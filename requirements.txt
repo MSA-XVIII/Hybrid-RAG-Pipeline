@@ -1,0 +1,19 @@
+# hybrid-rag — dependencies
+
+# --- core: both agents are LangGraph StateGraphs -----------------------------
+# LangGraph runs locally (no network), so the offline demo + tests still need no
+# credentials — just this package installed.
+langgraph>=0.2
+
+# --- offline dev/test ---
+pytest>=7.0
+
+# --- real services (only needed when using the real clients, not the fakes) ---
+# LMaaS is an Azure OpenAI gateway -> official OpenAI SDK provides AzureOpenAI.
+openai>=1.30
+# HTTP for IDAM token calls, DIS REST, and Neptune Gremlin-over-HTTPS.
+requests>=2.28
+# AWS SigV4 signing for Neptune when IAM DB auth is on.
+boto3>=1.34
+# Only needed to load .pdf files from the docs/ folder (md/txt need nothing).
+pdfplumber>=0.11

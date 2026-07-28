@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+env/
+.env/
+
+# IDAM token cache (secrets)
+__idamcache__
+
+# Local routing catalog written at runtime
+routing_catalog.json
+
+# Notebook checkpoints
+.ipynb_checkpoints/
