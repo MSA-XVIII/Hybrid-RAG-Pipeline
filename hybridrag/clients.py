@@ -48,6 +48,12 @@ def _lit(value: Any) -> str:
     return f"'{s}'"
 
 
+def _label(value: str, fallback: str) -> str:
+    """Sanitize an LLM-supplied type/relation into a safe Gremlin label."""
+    s = re.sub(r"[^A-Za-z0-9_]", "", str(value or ""))
+    return s or fallback
+
+
 def _values(resp: dict) -> list[dict]:
     """Pull the list of result maps from a Gremlin HTTP response."""
     try:
@@ -403,6 +409,43 @@ class GraphClient:
                      f"__.addE('MENTIONS').from('s'))")
         for stmt in g:
             self.run_gremlin(stmt)
+
+    def upsert_typed_entities(self, nodes: list[dict], edges: list[dict]) -> None:
+        """Persist an LMaaS-built typed entity graph (see KnowledgeGraph.to_store()).
+
+        ``nodes`` = [{id, name, type}] -> vertices labelled with the LLM-assigned type
+        ``edges`` = [{source, target, relation, count}] -> typed entity->entity edges
+
+        Idempotent: vertices upsert by id, an edge upserts on (source, relation, target).
+        Neptune cannot change a vertex label after creation, so the type is ALSO stored
+        as an ``etype`` property — that is what reads/filters use.
+        """
+        for n in nodes:
+            nid, label = n["id"], _label(n.get("type"), "Entity")
+            self.run_gremlin(
+                f"g.V({_lit(nid)}).fold().coalesce(unfold(),"
+                f"addV('{label}').property(id,{_lit(nid)}))"
+                f".property('name',{_lit(n.get('name', nid))})"
+                f".property('etype',{_lit(n.get('type', 'Entity'))})")
+        for e in edges:
+            sid, oid, rel = e["source"], e["target"], _label(e.get("relation"), "RELATED_TO")
+            self.run_gremlin(
+                f"g.V({_lit(sid)}).as('s').V({_lit(oid)}).coalesce("
+                f"__.inE('{rel}').where(__.outV().hasId({_lit(sid)})),"
+                f"__.addE('{rel}').from('s')).property('count',{int(e.get('count', 1))})")
+
+    def get_entity_graph(self, limit: int = 400) -> tuple[list[dict], list[dict]]:
+        """Read the typed entity graph back out of Neptune.
+
+        Returns (nodes, edges) in the shape visualize.entity_kg_html() expects.
+        """
+        nres = self.run_gremlin(
+            f"g.V().has('etype').limit({limit})"
+            ".project('id','label','group').by(id).by('name').by('etype')")
+        eres = self.run_gremlin(
+            f"g.V().has('etype').outE().where(__.inV().has('etype')).limit({limit * 4})"
+            ".project('from','to','label').by(__.outV().id()).by(__.inV().id()).by(label)")
+        return _values(nres), _values(eres)
 
     def get_sections(self, doc_ids: list[str] | None = None) -> list[dict]:
         """Headings only (cheap) — for vectorless navigation."""

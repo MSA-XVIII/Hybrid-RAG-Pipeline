@@ -153,6 +153,8 @@ class FakeGraph:
         self.docs: dict[str, dict] = {}
         self._mentions: dict[str, dict[str, set]] = {}  # doc_id -> {section_id: {entity_id}}
         self._entity_names: dict[str, str] = {}         # entity_id -> display name
+        self._typed_nodes: dict[str, dict] = {}         # LMaaS typed entity graph
+        self._typed_edges: dict[tuple, dict] = {}
 
     def upsert_document_tree(self, doc_id: str, title: str, sections: list[dict]) -> None:
         secs = []
@@ -170,6 +172,20 @@ class FakeGraph:
             self._entity_names[eid] = m["entity"]
             sid = f"sec_{doc_id}_{m.get('order', 0)}"
             dm.setdefault(sid, set()).add(eid)
+
+    def upsert_typed_entities(self, nodes: list[dict], edges: list[dict]) -> None:
+        """In-memory twin of GraphClient.upsert_typed_entities (idempotent by id/key)."""
+        for n in nodes:
+            self._typed_nodes[n["id"]] = {"id": n["id"], "label": n.get("name", n["id"]),
+                                          "group": n.get("type", "Entity")}
+        for e in edges:
+            rel = e.get("relation", "RELATED_TO")
+            self._typed_edges[(e["source"], rel, e["target"])] = {
+                "from": e["source"], "to": e["target"], "label": rel}
+
+    def get_entity_graph(self, limit: int = 400) -> tuple[list[dict], list[dict]]:
+        return (list(self._typed_nodes.values())[:limit],
+                list(self._typed_edges.values())[:limit * 4])
 
     def _iter_sections(self, doc_ids=None):
         for did, d in self.docs.items():

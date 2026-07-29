@@ -141,6 +141,17 @@ class KnowledgeGraph:
         c: Counter = Counter(n["type"] for n in self.nodes.values())
         return dict(c.most_common())
 
+    def to_store(self) -> tuple[list[dict], list[dict]]:
+        """(nodes, edges) as plain JSON-safe dicts, for a graph store writer.
+
+        nodes = [{id, name, type, docs}]  edges = [{source, target, relation, count, docs}]
+        """
+        nodes = [{"id": n["id"], "name": n["name"], "type": n["type"],
+                  "docs": sorted(n["docs"])} for n in self.nodes.values()]
+        edges = [{"source": e["source"], "target": e["target"], "relation": e["relation"],
+                  "count": e["count"], "docs": sorted(e["docs"])} for e in self.edges.values()]
+        return nodes, edges
+
     def to_vis(self) -> tuple[list[dict], list[dict]]:
         """(nodes, edges) shaped for visualize.entity_kg_html / vis-network."""
         nodes = [{"id": n["id"], "label": n["name"], "group": n["type"],
